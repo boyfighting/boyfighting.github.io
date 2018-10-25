@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>让react用起来更得心应手——（react-redux）</title>
+  <link rel="icon" type="image/x-icon" class="js-site-favicon" href="https://assets-cdn.github.com/favicon.ico">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+  <div class="container">
+    <div class="content">
+        <div class="head">
+          <p class="titleBlog">让react用起来更得心应手——（react-redux）</p>
+          <p class="author">--- boyfighting</p>
+        </div>
+        <div class="detail">
+          <p class="detailTitle">redux 实现</p>
+          <p class="smallTitle">基础框架</p>
+          <pre>
+            <code>
+                //用来创建store
+                function createStore(reducer){}
+
+                //抽离出不同的type调用dispatch函数的复用部分
+                function bindActionCreators(action, dispatch){}
+
+                //合并reducer
+                function combinReducers(reducers){}
+
+                //注册中间件
+                function applyMiddleware (...middlewares) {}
+
+                export {
+                  createStore,
+                  bindActionCreators,
+                  combinReducers,
+                  applyMiddleware,
+                }
+
+            </code>
+          </pre>
+
+          <p class="smallTitle">redux的核心createStore</p>
+
+          <ol>
+            <li>创建一个state变量用来储存平行组件间需要共享的变量</li>
+            <li>提供getState方法给外界获取state</li>
+            <li>提供subscribe方法给外界订阅回调在dispatch修改state时执行</li>
+            <li>提供dispatch方法为外界调用用户注册的reducer来修改state并执行订阅的回调</li>
+          </ol>
+
+          <pre>
+            <code>
+              function createStore(reducer) {
+                let state;//存放状态
+                let listeners = []; //存放订阅的回调
+
+                function dispatch(action) {
+                  state = reducer(state, action); //调用reducer返回新的state
+                  listeners.forEach(fn => fn()); //发布所有的订阅回调
+                }
+                // 派发初始动作，type为reducer中没有的类型，目的是初始化状态用户设置的状态
+                diapatch({type: '@INIT'});
+
+                function getState() {
+                  //暴露state属性不希望别人能改，改了也不会影响原有状态
+                  return JSON.parse(JSON.styingfy(state));
+                }
+
+                function subscribe (fn){
+                  //订阅回调，并返回一个从linsteners删除回调的函数
+                  listeners.push(fn);
+                  return () => { listeners.filter(l => l!= fn) };
+                }
+                return {
+                  getState,
+                  dispatch,
+                  subscribe,
+                }
+              }
+            </code>
+          </pre>
+
+          <p>为了理解上面的东西，请看下面的用例</p>
+
+          <pre>
+            <code>
+              let initState = {
+                title: {color: "red", text: 'kbz'}
+              };
+
+              function reducer (state = initState, action) {
+                switch (action.type) {
+                  case 'CHANGE_TITLE_COLOR':
+                    return {...state, title: {...state.title, color: action.color}};
+                  case 'CHANGE_TITLE_TEXT':
+                    return {...state, content: {...state.title, text: action.text}};
+                    break;
+                }
+                return state;
+              }
+
+              let store = createStore(reducer);
+              let unsubcribe = store.subscribe(function () {
+                console.log(store.getState().title.color);
+              })
+
+              setTimeout(() => {
+                store.dispatch({type: 'CHANGE_TITLE_COLOR', color: 'yellow'});
+              }, 1000);
+              setTimeout(() = >{
+                unsubcribe();
+                store.dispatch({type: 'CHANGE_TITLE_TEXT', text: 'bbb'});
+              }, 1000)
+            </code>
+          </pre>
+
+          <p class="smallTitle">bindActionCreators</p>
+          <p>在创建组建的时候，组件应该是纯粹的，使用store.dispatch等其他变量，需要更具情况而区别的引入不同的变量，最好使用state或者props，所以需要将action和dispatch抽离封装然后赋予到组件的prop上</p>
+
+          <p>1.抽离type</p>
+          <pre>
+            <code>
+              //action-types.js
+              export const ADD = 'ADD';
+              export const MINUS = 'MINUS';
+            </code>
+          </pre>
+
+          <p>2.抽离action</p>
+          <pre>
+            <code>
+              //action.js
+              import * as types from '../action-types';
+              let actions = {
+                add(count) {
+                  return {type: types.ADD, count}
+                },
+                minus(count) {
+                  return {type: types.MINUS, count}
+                }
+              }
+              export default actions;
+            </code>
+          </pre>
+
+          <p>3.批量抽离dispatch</p>
+          <pre>
+            <code>
+              function bindActionCreators(actions, dispatch) {
+                let obj = {};
+                for (let key in actions) {
+                  obj[key] = (...args) => dispatch(actions[key](...args)
+                }
+                return obj;
+              }
+            </code>
+          </pre>
+
+          <p>4.属性赋值</p>
+          <pre>
+            <code>
+              import React, {Component} from 'react';
+              import {render} from 'react-dom';
+              import Counter from './component/Counter';
+              import {bindActionCreators} from 'redux';
+              import store from './store';
+              import action from './action';
+              let props = bindActionCreaters(action, store.dispatch);
+              render(<Counter {...props}></Counter>, window.root);
+            </code>
+          </pre>
+
+          <p class="smallTitle">combinReducers</p>
+          <p>为了更好地模块化管理，可以将每个组建的reducer分开来创建，然后通过combinReducers将所有的reducer合并起来，其原理是创建一个函数，dispa的时候将所有的reducer执行一次</p>
+          <pre>
+            <code>
+              function combinReducers(reducers) {
+                //返回一个总的totalreducer,和所有的reducer一样接受state和action
+                return (state = {}, action ){
+                  //totalstate 记录每一个组件的state
+                  //遍历所有的reducer， 将返回的state重新登记在totalstate中
+                  let obj = {};
+                  for (let key in reducers ){
+                    obj[key] = reducers[key](state[key, action])
+                  }
+                  return obj;
+                }
+              }
+            </code>
+          </pre>
+          <p class="smallTitle">applyMiddleware</p>
+          <p class="smallTitle">常用的中间件</p>
+
+          <p>中间件的原理： 在原来的dispatch方法外包装一层函数，扩展其功能，又能保证原来功能的使用</p>
+          <pre>
+            <code>
+              //打印日志中间件
+              
+            </code>
+          </pre>
+
+        </div>
+    </div>
+  </div>
+  
+</body>
+</html>
