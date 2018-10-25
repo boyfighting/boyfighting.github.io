@@ -198,7 +198,38 @@
           <pre>
             <code>
               //打印日志中间件
-              
+              let reduxLogger = (store) => (dispatch) => (action) => {
+                console.log('prev', store.getState());
+                dispatch(action);
+                console.log('next', store.getState());
+              }
+
+              let reduxThunk = (store) => (dispatch) => (action) => {
+                // 如果是函数将正真的dispatch传给用户，用户抉择是否要派发
+                if (typeof action === 'function') {
+                  return action(dispatch,store.getstate())
+                }
+                dispatch(action); //直接把对象派发即可
+              }
+
+              let reduxPromise = (store) => (dispatch) => (action) => {
+                //判断当前action是不是一个promise，如果是就执行，执行的时候指挥官执行的结果
+                if(action.then && typeof(action.then) === 'function'){
+                  return action.then(dispatch)
+                } else if (action.payload && action.paylod.then ) {//action.payload 是不是promise
+                  return action.payload.then(data =>{
+                    dispatch({...action, payload: data})
+                  }, err => {
+                    dispatch({...action, payload: err});
+                    return Promise.reject(err);
+                  }
+                  )
+                  
+
+                }
+                return dispatch(action);
+
+              }
             </code>
           </pre>
 
