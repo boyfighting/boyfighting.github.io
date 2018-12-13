@@ -174,7 +174,7 @@
           </pre>
 
           <p class="smallTitle">combinReducers</p>
-          <p>为了更好地模块化管理，可以将每个组建的reducer分开来创建，然后通过combinReducers将所有的reducer合并起来，其原理是创建一个函数，dispa的时候将所有的reducer执行一次</p>
+          <p>为了更好地模块化管理，可以将每个组建的reducer分开来创建，然后通过combinReducers将所有的reducer合并起来，其原理是创建一个函数，dispatch的时候将所有的reducer执行一次</p>
           <pre>
             <code>
               function combinReducers(reducers) {
@@ -222,14 +222,48 @@
                   }, err => {
                     dispatch({...action, payload: err});
                     return Promise.reject(err);
-                  }
-                  )
-                  
-
+                  })
                 }
                 return dispatch(action);
 
               }
+            </code>
+          </pre>
+
+          <p class="smallTitle">applyMiddleware基础原理</p>
+
+          <pre>
+            <code>
+              let applyMiddleware = (middleware) => (createStore) => (reducer) => {
+                let store = createStore(reducer);
+                //返回新的dispatch: (action) {xxxxx}
+
+                let fn = middlrware(store);
+                let newDispatch = fn(store.dispatch);
+                //覆盖原有的 dispatch，返回{getstate, diapatch: newDispatch, subscribe}
+                return {...store, dispatch: newDispatch}
+              }
+              //典型的颗粒化，把多个middleware连起来，后面compose会介绍
+              export default applyMiddleware(reduxLogger)(createStore)(reducer);
+            </code>
+          </pre>
+
+          <p class="smallTitle">compose</p>
+          <p>compose的原理</p>
+          <p>项目中使用的插件不止一个，在使用多个插件的情况下，需要使用一个方法将多个插件合并成一个。</p>
+
+          <pre>
+            <code>
+              function add (a, b) {
+                return a+b;
+              }
+              function toUpperCase (str) {
+                return str.toUpperCase();
+              }
+              function len(str){
+                return str.length;
+              }
+              
             </code>
           </pre>
 
